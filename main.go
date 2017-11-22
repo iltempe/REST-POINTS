@@ -1,5 +1,4 @@
-//inspired to https://medium.com/@etiennerouzeaud/how-to-create-a-basic-restful-api-in-go-c8e032ba3181
-//and https://gist.github.com/EtienneR/ed522e3d31bc69a9dec3335e639fcf60
+//realized analizing and change this experiment https://gist.github.com/EtienneR/ed522e3d31bc69a9dec3335e639fcf60
 package main
 
 import (
@@ -8,10 +7,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type Users struct {
-	Id        int    `gorm:"AUTO_INCREMENT" form:"id" json:"id"`
-	Firstname string `gorm:"not null" form:"firstname" json:"firstname"`
-	Lastname  string `gorm:"not null" form:"lastname" json:"lastname"`
+type Pois struct {
+	Id  int    `gorm:"AUTO_INCREMENT" form:"id" json:"id"`
+	lat string `gorm:"not null" form:"lat" json:"lat"`
+	lon string `gorm:"not null" form:"lon" json:"lon"`
 }
 
 func InitDb() *gorm.DB {
@@ -25,9 +24,9 @@ func InitDb() *gorm.DB {
 		panic(err)
 	}
 	// Creating the table
-	if !db.HasTable(&Users{}) {
-		db.CreateTable(&Users{})
-		db.Set("gorm:table_options", "ENGINE=InnoDB").CreateTable(&Users{})
+	if !db.HasTable(&Pois{}) {
+		db.CreateTable(&Pois{})
+		db.Set("gorm:table_options", "ENGINE=InnoDB").CreateTable(&Pois{})
 	}
 
 	return db
@@ -47,141 +46,136 @@ func main() {
 
 	v1 := r.Group("api/v1")
 	{
-		v1.POST("/users", PostUser)
-		v1.GET("/users", GetUsers)
-		v1.GET("/users/:id", GetUser)
-		v1.PUT("/users/:id", UpdateUser)
-		v1.DELETE("/users/:id", DeleteUser)
+		v1.POST("/pois", PostPoi)
+		v1.GET("/pois", GetPois)
+		v1.GET("/pois/:id", GetPoi)
+		v1.PUT("/pois/:id", UpdatePoi)
+		v1.DELETE("/pois/:id", DeletePoi)
+		v1.OPTIONS("/pois", OptionsPoi)     // POST
+		v1.OPTIONS("/pois/:id", OptionsPoi) // PUT, DELETE
 	}
 
-	r.Run(":8081")
+	r.Run(":8500")
 }
 
-func PostUser(c *gin.Context) {
+func PostPoi(c *gin.Context) {
 	db := InitDb()
 	defer db.Close()
 
-	var user Users
-	c.Bind(&user)
+	var poi Pois
+	c.Bind(&poi)
 
-	if user.Firstname != "" && user.Lastname != "" {
-		// INSERT INTO "users" (name) VALUES (user.Name);
-		db.Create(&user)
+	if poi.lat != "" && poi.lon != "" {
+		db.Create(&poi)
 		// Display error
-		c.JSON(201, gin.H{"success": user})
+		c.JSON(201, gin.H{"success": poi})
 	} else {
 		// Display error
 		c.JSON(422, gin.H{"error": "Fields are empty"})
+		//curl -i -X POST -H "Content-Type: application/json" -d "{ \"lat\": \"42\", \"lon\": \"54\" }" http://localhost:8500/api/v1/pois
 	}
-
-	// curl -i -X POST -H "Content-Type: application/json" -d "{ \"firstname\": \"Thea\", \"lastname\": \"Queen\" }" http://localhost:8080/api/v1/users
 }
 
-func GetUsers(c *gin.Context) {
+func GetPois(c *gin.Context) {
 	// Connection to the database
 	db := InitDb()
 	// Close connection database
 	defer db.Close()
 
-	var users []Users
+	var pois []Pois
 	// SELECT * FROM users
-	db.Find(&users)
+	db.Find(&pois)
 
 	// Display JSON result
-	c.JSON(200, users)
+	c.JSON(200, pois)
 
 	// curl -i http://localhost:8080/api/v1/users
 }
 
-func GetUser(c *gin.Context) {
+func GetPoi(c *gin.Context) {
 	// Connection to the database
 	db := InitDb()
 	// Close connection database
 	defer db.Close()
 
 	id := c.Params.ByName("id")
-	var user Users
+	var poi Pois
 	// SELECT * FROM users WHERE id = 1;
-	db.First(&user, id)
+	db.First(&poi, id)
 
-	if user.Id != 0 {
+	if poi.Id != 0 {
 		// Display JSON result
-		c.JSON(200, user)
+		c.JSON(200, poi)
 	} else {
 		// Display JSON error
-		c.JSON(404, gin.H{"error": "User not found"})
+		c.JSON(404, gin.H{"error": "Poi not found"})
 	}
 
-	// curl -i http://localhost:8080/api/v1/users/1
 }
 
-func UpdateUser(c *gin.Context) {
+func UpdatePoi(c *gin.Context) {
 	// Connection to the database
 	db := InitDb()
 	// Close connection database
 	defer db.Close()
 
-	// Get id user
+	// Get id
 	id := c.Params.ByName("id")
-	var user Users
+	var poi Pois
 	// SELECT * FROM users WHERE id = 1;
-	db.First(&user, id)
+	db.First(&poi, id)
 
-	if user.Firstname != "" && user.Lastname != "" {
+	if poi.lat != "" && poi.lon != "" {
 
-		if user.Id != 0 {
-			var newUser Users
-			c.Bind(&newUser)
+		if poi.Id != 0 {
+			var newPoi Pois
+			c.Bind(&newPoi)
 
-			result := Users{
-				Id:        user.Id,
-				Firstname: newUser.Firstname,
-				Lastname:  newUser.Lastname,
+			result := Pois{
+				Id:  poi.Id,
+				lat: newPoi.lat,
+				lon: newPoi.lon,
 			}
 
-			// UPDATE users SET firstname='newUser.Firstname', lastname='newUser.Lastname' WHERE id = user.Id;
+			// UPDATE users SET
 			db.Save(&result)
 			// Display modified data in JSON message "success"
 			c.JSON(200, gin.H{"success": result})
 		} else {
 			// Display JSON error
-			c.JSON(404, gin.H{"error": "User not found"})
+			c.JSON(404, gin.H{"error": "Poi not found"})
 		}
 
 	} else {
 		// Display JSON error
 		c.JSON(422, gin.H{"error": "Fields are empty"})
 	}
-
-	// curl -i -X PUT -H "Content-Type: application/json" -d "{ \"firstname\": \"Thea\", \"lastname\": \"Merlyn\" }" http://localhost:8080/api/v1/users/1
 }
 
-func DeleteUser(c *gin.Context) {
+func DeletePoi(c *gin.Context) {
 	// Connection to the database
 	db := InitDb()
 	// Close connection database
 	defer db.Close()
 
-	// Get id user
+	// Get id
 	id := c.Params.ByName("id")
-	var user Users
+	var poi Pois
 	// SELECT * FROM users WHERE id = 1;
-	db.First(&user, id)
+	db.First(&poi, id)
 
-	if user.Id != 0 {
+	if poi.Id != 0 {
 		// DELETE FROM users WHERE id = user.Id
-		db.Delete(&user)
+		db.Delete(&poi)
 		// Display JSON result
-		c.JSON(200, gin.H{"success": "User #" + id + " deleted"})
+		c.JSON(200, gin.H{"success": "Poi #" + id + " deleted"})
 	} else {
 		// Display JSON error
-		c.JSON(404, gin.H{"error": "User not found"})
+		c.JSON(404, gin.H{"error": "Poi not found"})
 	}
-
-	// curl -i -X DELETE http://localhost:8080/api/v1/users/1
 }
 
-func OptionsUser(c *gin.Context) {
+func OptionsPoi(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "DELETE,POST, PUT")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	c.Next()
